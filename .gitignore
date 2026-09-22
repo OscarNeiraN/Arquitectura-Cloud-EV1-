@@ -43,6 +43,11 @@ npm-debug.log*
 .env
 .env.*
 
+# --- Documentos de la evaluacion ---------------------------------------------
+# El informe y el enunciado se entregan por Blackboard, no por el repositorio
+*.docx
+*.pdf
+
 # --- Evidencias e intermedios ------------------------------------------------
 # Capturas de la consola AWS: ya van embebidas en el informe y contienen
 # el ID de cuenta y los identificadores de sesion
