@@ -1,0 +1,51 @@
+#!/bin/bash
+# =============================================================================
+# FreshBox SpA - User data EC2 App (capa App, Auto Scaling Group)
+# Plantilla renderizada por Terraform (main.tf raiz). Amazon Linux 2023 ARM64.
+# Instala Docker y Docker Compose, y levanta los 5 contenedores desde Amazon ECR
+# usando /opt/freshbox/docker-compose.yml (generado por Terraform).
+# =============================================================================
+set -uo pipefail
+exec > >(tee -a /var/log/user-data.log) 2>&1
+echo "=== [freshbox-app] inicio $(date -Is) ==="
+
+REGION="${aws_region}"
+REGISTRY="${registry_url}"
+COMPOSE_VERSION="v2.29.2"
+APP_DIR="/opt/freshbox"
+
+dnf install -y docker
+systemctl enable --now docker
+
+# Plugin Docker Compose v2 (Amazon Linux 2023 no lo incluye). uname -m -> aarch64 o x86_64
+install -d -m 0755 /usr/local/lib/docker/cli-plugins
+until curl -fsSL -o /usr/local/lib/docker/cli-plugins/docker-compose \
+  "https://github.com/docker/compose/releases/download/$COMPOSE_VERSION/docker-compose-linux-$(uname -m)"; do
+  echo "Reintentando descarga de Docker Compose en 15 s..."
+  sleep 15
+done
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+docker compose version
+
+# docker-compose.yml de la capa App (imagenes de ECR, sin servicio db)
+install -d -m 0755 "$APP_DIR"
+cat > "$APP_DIR/docker-compose.yml" <<'COMPOSE'
+${compose_file}
+COMPOSE
+
+cd "$APP_DIR" || exit 1
+
+# Autenticacion en ECR y descarga de las imagenes. Si aun no se ha hecho el push,
+# se reintenta cada 30 s durante 30 minutos.
+for attempt in $(seq 1 60); do
+  if aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$REGISTRY" >/dev/null \
+    && docker compose pull; then
+    break
+  fi
+  echo "[$attempt/60] imagenes no disponibles en ECR, reintentando en 30 s..."
+  sleep 30
+done
+
+docker compose up -d
+docker compose ps
+echo "=== [freshbox-app] fin $(date -Is) ==="

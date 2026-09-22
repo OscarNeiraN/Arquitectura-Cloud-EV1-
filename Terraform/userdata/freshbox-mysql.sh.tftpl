@@ -1,0 +1,57 @@
+#!/bin/bash
+# =============================================================================
+# FreshBox SpA - User data EC2 MySQL (capa Data)
+# Plantilla renderizada por Terraform (modules/database). Amazon Linux 2023 ARM64.
+# Instala MySQL Community Server 8.4 LTS nativo (sin Docker), crea el usuario de la
+# aplicacion y carga init.sql. Los datos quedan en /var/lib/mysql, sobre el volumen
+# EBS cifrado que respalda AWS Backup.
+# =============================================================================
+set -euo pipefail
+exec > >(tee -a /var/log/user-data.log) 2>&1
+# cloud-init ejecuta el user data sin HOME: se define para que las herramientas encuentren ~/.my.cnf
+export HOME=/root
+echo "=== [freshbox-mysql] inicio $(date -Is) ==="
+
+# Repositorio oficial de MySQL Community para EL9 (compatible con Amazon Linux 2023).
+# La salida a Internet es via NAT Gateway: se reintenta si aun no esta disponible.
+for attempt in $(seq 1 40); do
+  dnf install -y https://dev.mysql.com/get/mysql84-community-release-el9-1.noarch.rpm && break
+  echo "[$attempt/40] Reintentando instalacion del repositorio MySQL en 15 s..."
+  sleep 15
+done
+rpm -q mysql84-community-release || { echo "ERROR: no se pudo instalar el repositorio MySQL" >&2; exit 1; }
+dnf install -y mysql-community-server
+systemctl enable --now mysqld
+
+# Contrasena de root: la instalacion genera una temporal; se reemplaza por una aleatoria
+# guardada en /root/.my.cnf (solo root puede leerla)
+TEMP_PASS=$(grep 'temporary password' /var/log/mysqld.log | tail -1 | awk '{print $NF}')
+ROOT_PASS="Fb$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')!"
+mysql --connect-expired-password -uroot -p"$TEMP_PASS" \
+  -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$ROOT_PASS';"
+cat > /root/.my.cnf <<EOF
+[client]
+user=root
+password=$ROOT_PASS
+EOF
+chmod 600 /root/.my.cnf
+# Cliente MySQL autenticado como root con el archivo anterior (explicito, sin depender de HOME)
+MYSQL="mysql --defaults-extra-file=/root/.my.cnf"
+
+# La politica de contrasenas por defecto rechaza la clave del caso: se desactiva
+$MYSQL -e "UNINSTALL COMPONENT 'file://component_validate_password';" || true
+
+# Usuario de la aplicacion: acceso remoto (el Security Group solo admite a SG-APP)
+$MYSQL -e "CREATE USER IF NOT EXISTS '${db_user}'@'%' IDENTIFIED BY '${db_password}';
+          GRANT ALL PRIVILEGES ON ${db_name}.* TO '${db_user}'@'%';
+          FLUSH PRIVILEGES;"
+
+# Base de datos freshbox, tabla productos y datos iniciales
+cat > /root/init.sql <<'SQL'
+${init_sql}
+SQL
+sed -i 's/\r$//' /root/init.sql   # init.sql viene con fin de linea de Windows (CRLF)
+$MYSQL < /root/init.sql
+
+$MYSQL -e "SELECT COUNT(*) AS productos FROM ${db_name}.productos;"
+echo "=== [freshbox-mysql] fin $(date -Is) ==="

@@ -1,0 +1,45 @@
+# =============================================================================
+# FreshBox SpA - docker-compose para las EC2 App (capa App)
+# Adaptado del docker-compose.yml local. Terraform lo genera y el user data lo
+# deja en /opt/freshbox/docker-compose.yml de cada instancia del ASG.
+#
+# Diferencias con la version local:
+#   - usa las imagenes publicadas en Amazon ECR en vez de compilar con "build"
+#   - no incluye el servicio "db": MySQL corre en la EC2 dedicada de la capa Data
+#   - solo el frontend publica puerto (80 hacia el ALB); los backend quedan en la red interna
+# =============================================================================
+name: ${project_name}
+
+services:
+%{ for name, port in backend_services ~}
+  ${name}:
+    image: ${registry_url}/${repo_prefix}-${name}:latest
+    container_name: ${name}
+    restart: unless-stopped
+    environment:
+      PORT: "${port}"
+      DB_HOST: "${db_host}"
+      DB_PORT: "${db_port}"
+      DB_NAME: "${db_name}"
+      DB_USER: "${db_user}"
+      DB_PASS: "${db_password}"
+    networks:
+      - ${docker_network}
+
+%{ endfor ~}
+  ${frontend_service}:
+    image: ${registry_url}/${repo_prefix}-${frontend_service}:latest
+    container_name: ${frontend_service}
+    restart: unless-stopped
+    ports:
+      - "${frontend_port}:80"
+    depends_on:
+%{ for name, port in backend_services ~}
+      - ${name}
+%{ endfor ~}
+    networks:
+      - ${docker_network}
+
+networks:
+  ${docker_network}:
+    driver: bridge

@@ -1,0 +1,58 @@
+# =============================================================================
+# EP1 ARY1102 - FreshBox SpA
+# =============================================================================
+
+# --- Terraform ---------------------------------------------------------------
+# Directorio de trabajo: incluye los binarios de los proveedores (cientos de MB)
+**/.terraform/
+
+# Estado: contiene credenciales e informacion de la infraestructura desplegada
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Variables con valores reales (contrasenas). Se versiona solo el ejemplo
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Planes y registros de error
+*.tfplan
+crash.log
+crash.*.log
+
+# Configuracion local de la CLI
+.terraformrc
+terraform.rc
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# --- Credenciales ------------------------------------------------------------
+*.pem
+*.key
+*.ppk
+.aws/
+credentials
+aws_credentials*
+
+# --- Node.js (microservicios) ------------------------------------------------
+node_modules/
+npm-debug.log*
+.env
+.env.*
+
+# --- Evidencias e intermedios ------------------------------------------------
+# Capturas de la consola AWS: ya van embebidas en el informe y contienen
+# el ID de cuenta y los identificadores de sesion
+evidencias/
+
+# --- Sistema operativo y Office ----------------------------------------------
+Thumbs.db
+desktop.ini
+.DS_Store
+~$*.docx
+~$*.xlsx
+~$*.pptx
+*.tmp

@@ -1,0 +1,11 @@
+cd "C:\Users\oscar\OneDrive\Escritorio\6° semestre\Arquitectura Cloud\EV1\Terraform"
+
+terraform destroy `
+  "-target=aws_autoscaling_policy.cpu" `
+  "-target=aws_autoscaling_group.app" `
+  "-target=module.alb" `
+  "-target=module.launch_template" `
+  "-target=module.backup" `
+  "-target=module.database" `
+  "-target=module.security" `
+  "-target=module.network"

@@ -1,0 +1,71 @@
+# =============================================================================
+# FreshBox SpA - EP1 ARY1102 | Variables de ejemplo
+#
+# Copiar como terraform.tfvars y ajustar los valores marcados como CAMBIAR.
+# El archivo terraform.tfvars real NO se versiona: contiene credenciales.
+#
+#   cp terraform.tfvars.example terraform.tfvars
+# =============================================================================
+
+aws_region   = "us-east-1"
+project_name = "freshbox"
+
+# Ambiente: prefijo de los recursos (prod-freshbox-...) y tag Environment
+environment = "prod"
+
+# EC2 Amazon Linux t4g.small (ARM Graviton) para las capas App y Data.
+# Si el laboratorio no permite la familia t4g, usar t3.small y cambiar la AMI a x86_64.
+instance_type = "t4g.small"
+
+# Perfil IAM de las EC2: acceso por Session Manager (sin SSH) y lectura de ECR.
+# Verificar el nombre disponible con: aws iam list-instance-profiles
+ec2_instance_profile_name = "LabInstanceProfile"
+
+# VPC 10.0.0.0/22 con 6 subredes /26 (2 publicas + 2 App + 2 Data)
+vpc_cidr       = "10.0.0.0/22"
+subnet_newbits = 4
+
+subnets_config = {
+  "prod-freshbox-public-a"       = { az = "us-east-1a", net_num = 0, public = true, tier = "public" } # 10.0.0.0/26
+  "prod-freshbox-public-b"       = { az = "us-east-1b", net_num = 1, public = true, tier = "public" } # 10.0.0.64/26
+  "prod-freshbox-private-app-a"  = { az = "us-east-1a", net_num = 4, public = false, tier = "app" }   # 10.0.1.0/26
+  "prod-freshbox-private-app-b"  = { az = "us-east-1b", net_num = 5, public = false, tier = "app" }   # 10.0.1.64/26
+  "prod-freshbox-private-data-a" = { az = "us-east-1a", net_num = 8, public = false, tier = "db" }    # 10.0.2.0/26
+  "prod-freshbox-private-data-b" = { az = "us-east-1b", net_num = 9, public = false, tier = "db" }    # 10.0.2.64/26
+}
+
+# Amazon Linux 2023 ARM64 (estandar, NO minimal: las minimal no traen el agente de
+# AWS Systems Manager y dejarian las instancias sin acceso por Session Manager)
+ami_config = {
+  most_recent = true
+  owners      = ["amazon"]
+  filters = [
+    { name = "name", values = ["al2023-ami-2023.*-kernel-*-arm64"] },
+    { name = "architecture", values = ["arm64"] },
+  ]
+}
+
+alb_config = {
+  name = "prod-freshbox-alb"
+}
+
+# Auto Scaling Group: minimo 2, maximo 4 instancias
+asg_min_size = 2
+asg_max_size = 4
+
+# 5 contenedores: 1 frontend (Nginx) + 4 microservicios Node.js.
+# Las claves son los nombres de repositorio ECR (<project_name>-<clave>) y de
+# contenedor (deben coincidir con los upstream de nginx.conf).
+container_services = {
+  "frontend"       = { port = 80, frontend = true }
+  "get-products"   = { port = 3001 }
+  "create-product" = { port = 3002 }
+  "update-product" = { port = 3003 }
+  "delete-product" = { port = 3004 }
+}
+
+db_config = {
+  db_name  = "freshbox"
+  username = "alumno"
+  password = "CAMBIAR-por-una-contrasena-propia" # CAMBIAR: no versionar la real
+}
